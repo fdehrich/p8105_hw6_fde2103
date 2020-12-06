@@ -102,3 +102,27 @@ models_results_df %>%
 ```
 
 I notice that New York, NY has the lowest odds ratio, and Albuquerque, NM has the highest odds ratio. Albuquerque, NM also appears to have the widest confidence interval. There is a good amount over overlap among the confidence intervals of the various cities.
+
+## Problem 2
+
+First, I will load and clean the data for regression analysis.
+
+```{r message = FALSE, warning = FALSE}
+baby_df =
+  read_csv("./data/birthweight.csv") %>% 
+  mutate(
+    babysex = as.factor(babysex),
+    babysex = recode(babysex, "1" = "Male", "2" = "Female"),
+    frace = as.factor(frace),
+    frace = recode(frace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other", "9" = "Unknown"),
+    malform = as.factor(malform),
+    malform = recode(malform, "0" = "Absent", "1" = "Present"),
+    mrace = as.factor(mrace),
+    mrace = recode(mrace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other")
+  )
+
+# Checking to see if missing data
+sum(is.na(baby_df))
+```
+
+It doesn't look like there are any missing data.

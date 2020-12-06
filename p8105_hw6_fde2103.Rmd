@@ -126,3 +126,36 @@ sum(is.na(baby_df))
 ```
 
 It doesn't look like there are any missing data.
+
+First, I am going to fit the two models that are specified in the instructions.
+
+```{r}
+baby_specified1_lm = lm(bwt ~ blength + gaweeks, data = baby_df)
+
+baby_specified2_lm = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+```
+
+I am now going to use stepwise regression to generate a third regression model for birthweight (even though stepwise regression in not a preferred method in this class, I feel most conceptually familiar with this process! I was looking into the LASSO method, but didn't feel sure that I was implementing it correctly).
+
+```{r}
+baby_full_lm = lm(bwt ~ ., data = baby_df)
+
+baby_step_lm = MASS::stepAIC(baby_full_lm, direction = "both", trace = FALSE) # This function chooses the best model by AIC; I selected both forward and backward selection
+
+summary(baby_step_lm)
+```
+
+Below is a plot of model residuals against fitted values for the new model.
+
+```{r}
+baby_df %>% 
+  modelr::add_predictions(., baby_step_lm) %>% 
+  modelr::add_residuals(., baby_step_lm) %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point(alpha = .3) +
+  labs(
+    x = "Fitted Values",
+    y = "Residuals",
+    title = "Residuals vs Fitted Values"
+  )
+```

@@ -6,6 +6,7 @@ output: github_document
 
 ```{r setup, include = FALSE}
 library(tidyverse)
+library(modelr)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -127,15 +128,7 @@ sum(is.na(baby_df))
 
 It doesn't look like there are any missing data.
 
-First, I am going to fit the two models that are specified in the instructions.
-
-```{r}
-baby_specified1_lm = lm(bwt ~ blength + gaweeks, data = baby_df)
-
-baby_specified2_lm = lm(bwt ~ bhead * blength * babysex, data = baby_df)
-```
-
-I am now going to use stepwise regression to generate a third regression model for birthweight (even though stepwise regression in not a preferred method in this class, I feel most conceptually familiar with this process! I was looking into the LASSO method, but didn't feel sure that I was implementing it correctly).
+I am now going to use stepwise regression to generate a regression model for birthweight (even though stepwise regression in not a preferred method in this class, I feel most conceptually familiar with this process! I was looking into the LASSO method, but didn't feel sure that I was implementing it correctly).
 
 ```{r}
 baby_full_lm = lm(bwt ~ ., data = baby_df)
@@ -159,3 +152,137 @@ baby_df %>%
     title = "Residuals vs Fitted Values"
   )
 ```
+
+Now, I will compare this new model to the two previous models specified in the instructions.
+
+```{r message = FALSE, warning = FALSE}
+set.seed(4)
+
+cv_df = 
+  crossv_mc(baby_df, 100) %>% 
+  mutate(
+    specified1_mod = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    specified2_mod = map(.x = train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
+    step_mod = map(.x = train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x))
+  ) %>% 
+  mutate(
+    rmse_specified1 = map2_dbl(.x = specified1_mod, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_specified2 = map2_dbl(.x = specified2_mod, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_step = map2_dbl(.x = step_mod, .y = test, ~rmse(model = .x, data = .y))
+  )
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  mutate(
+    model = recode(model, "specified1" = "Specified 1", "specified2" = "Specified 2", "step" = "Stepwise")
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin() +
+  labs(
+    x = "Model",
+    y = "RMSE",
+    title = "RMSE by Model"
+  )
+```
+
+From this plot, it looks like the second specified model makes a decent improvement over the first specified model, and the stepwise model makes a relatively small improvement over the second specified model. The first specified model has the biggest spread in RMSE whereas the second specified model and the stepwise model have similar spreads in RMSE.
+
+## Problem 3
+
+First, I will read in the data.
+
+```{r message = FALSE, warning = FALSE}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+Now, I will generate 5000 bootstrap samples and, for each bootstrap sample, produce the two estimates.
+
+```{r}
+set.seed(4)
+
+boot_results = 
+  weather_df %>% 
+  bootstrap(5000, id = "strap_number") %>% 
+  mutate(
+    models = map(.x = strap, ~lm(tmax ~ tmin, data = .x)),
+    glance = map(models, broom::glance),
+    tidy = map(models, broom::tidy)
+  ) %>% 
+  select(strap_number, glance, tidy) %>% 
+  unnest(c(glance, tidy), names_repair = "universal") %>% 
+  select(strap_number, term, estimate, r.squared) %>% 
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>%
+  rename(intercept = `(Intercept)`) %>% 
+  group_by(strap_number) %>% 
+  summarize_all(na.omit) %>% 
+  mutate(
+    log = (log(intercept * tmin))
+  )
+```
+
+Below is a plot of the distribution of the R squared estimates.
+
+```{r}
+boot_results %>%
+  ggplot(aes(x = r.squared)) +
+  geom_density() +
+  labs(
+    x = "R Squared Estimate",
+    y = "Density"
+  )
+```
+
+I notice that this distribution looks normally distributed with a mean around 0.91.
+
+Below is a plot of the distribution of the log estimates.
+
+```{r}
+boot_results %>%
+  ggplot(aes(x = log)) +
+  geom_density() +
+  labs(
+    x = "Log Estimate",
+    y = "Density"
+  )
+```
+
+I notice that this distribution also looks normally distributed (there is a slight tail on the lefthand side though) with a mean around 2.02.
+
+I notice that both the distributions have a slightly longer "tail" on the lefthand side.
+
+Now, I will find the 95% confidence intervals for the R squared estimates and the log estimates.
+
+```{r message = FALSE, warning = FALSE}
+boot_results %>% 
+  pivot_longer(
+    c(r.squared, log),
+    names_to = "estimate",
+    values_to = "value"
+  ) %>% 
+  group_by(estimate) %>% 
+  summarize(
+    lower_CI = quantile(value, 0.025),
+    upper_CI = quantile(value, 0.975)
+  ) %>% 
+  knitr::kable()
+```
+

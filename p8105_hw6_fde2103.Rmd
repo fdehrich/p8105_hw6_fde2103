@@ -47,7 +47,7 @@ homicide_df =
   select(city_state, resolution, victim_age, victim_race, victim_sex)
 ```
 
-I will start by fitting a logistic regression for Baltimore, MD and displaying the estimate and confidence interval of the adjusted odds ratio for solving homicides comparing non-white victims to white victims keeping all other variables fixed.
+I will start by fitting a logistic regression for Baltimore, MD.
 
 ```{r}
 baltimore_df =
@@ -191,7 +191,7 @@ cv_df %>%
   )
 ```
 
-From this plot, it looks like the second specified model makes a decent improvement over the first specified model, and the stepwise model makes a relatively small improvement over the second specified model. The first specified model has the biggest spread in RMSE whereas the second specified model and the stepwise model have similar spreads in RMSE.
+From this plot, it looks like the second specified model makes a decent improvement over the first specified model, and the stepwise model makes a relatively small improvement over the second specified model. The first specified model has the biggest spread in RMSE whereas the second specified model and the stepwise model have similar spreads in RMSE. I think I would choose the second specified model as the associated RMSE is relative close to that of the stepwise model but is more parsimonious.
 
 ## Problem 3
 
@@ -213,7 +213,7 @@ weather_df =
 
 Now, I will generate 5000 bootstrap samples and, for each bootstrap sample, produce the two estimates.
 
-```{r}
+```{r message = FALSE, warning = FALSE}
 set.seed(4)
 
 boot_results = 
@@ -235,7 +235,7 @@ boot_results =
   group_by(strap_number) %>% 
   summarize_all(na.omit) %>% 
   mutate(
-    log = (log(intercept * tmin))
+    logb0b1 = (log(intercept * tmin))
   )
 ```
 
@@ -257,15 +257,15 @@ Below is a plot of the distribution of the log estimates.
 
 ```{r}
 boot_results %>%
-  ggplot(aes(x = log)) +
+  ggplot(aes(x = logb0b1)) +
   geom_density() +
   labs(
-    x = "Log Estimate",
+    x = "Log(B0*B1) Estimate",
     y = "Density"
   )
 ```
 
-I notice that this distribution also looks normally distributed (there is a slight tail on the lefthand side though) with a mean around 2.02.
+I notice that this distribution also looks normally distributed with a mean around 2.02.
 
 I notice that both the distributions have a slightly longer "tail" on the lefthand side.
 
@@ -274,7 +274,7 @@ Now, I will find the 95% confidence intervals for the R squared estimates and th
 ```{r message = FALSE, warning = FALSE}
 boot_results %>% 
   pivot_longer(
-    c(r.squared, log),
+    c(r.squared, logb0b1),
     names_to = "estimate",
     values_to = "value"
   ) %>% 
